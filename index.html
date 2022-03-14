@@ -1,9 +1,332 @@
 <!DOCTYPE html>
 <html>
-  <head>
-  <title>Dummy Page</title>
-  </head>
-  <body>
-    <h1>Dummy page. Ignore</h1>
-  </body>
+    <head>
+        <title>Markdown to Shipyard Converter</title>
+
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="js/js-yaml.min.js"></script>
+
+        <script>
+          let master_list = {
+            stages: new Array()
+          }
+
+          // Override function
+          
+          const walkTokens = (token) => {
+              console.log(token);
+
+              if (token.type === 'heading' && token.depth == 1) { // stage
+                  console.log('got a stage...');
+                  // stage_index starts at -1 so increment to 0
+                  // to track the first stage
+                  stage_index += 1;
+
+                  // This is a new stage so reset sequence_index
+                  sequence_index = -1;
+
+                  //console.log("Got a stage: " + token.text + ". Index is: " + stage_index);
+                  master_list['stages'].push({
+                      "name": token.text,
+                      "sequences": new Array()
+                  })
+
+              }
+              if (token.type === 'heading' && token.depth == 2) { // sequence
+                  // sequence_index starts at -1 so increment to 0
+                  // to track first sequence
+                  // and reset task index
+                  sequence_index += 1;
+                  task_index = -1;
+
+                  // Add sequence to the stage
+                  master_list['stages'][stage_index]['sequences'].push({
+                      "name": token.text,
+                      "tasks": new Array()
+                  })
+
+              }
+              if (token.type == 'heading' && token.depth == 3) { // task
+
+                // task_index starts at -1 so increment to 0
+                // to track first task
+                task_index += 1;
+
+                // Add this task to the sequence
+                master_list['stages'][stage_index]['sequences'][sequence_index]['tasks'].push({
+                    "name": token.text
+                })
+              }
+              if (token.type == 'heading' && token.depth == 4) { // task property. This is the normal way. 
+                //console.log('Got a task property: ' + token.text + ' for task: ' + task_index + ' of sequence: ' + sequence_index + ' in stage: ' + stage_index);
+                //console.log(token);
+                property_split = token.text.split('=');
+                //console.log(property_split)
+
+                // Add task property within task properties
+                master_list['stages'][stage_index]['sequences'][sequence_index]['tasks'][task_index]['properties'] = {};
+                master_list['stages'][stage_index]['sequences'][sequence_index]['tasks'][task_index]['properties'][property_split[0]] = property_split[1];
+              }
+
+              /* Sequences can be 'triggeredOn'. Deal with this scenario specially
+               * shipyard syntax is one of these two:
+               * triggeredOn:
+               * - event: "production.remediation.finished"
+               * OR
+               * triggeredOn:
+               *  - event: "production.remediation.finished"
+               *    selector:
+               *      match:
+               *        evaluation.result: "fail"
+               *
+               * So expect input like this:
+               * # dev
+               * ## delivery
+               * triggeredOn=dev.delivery.finished
+               * OR
+               * # dev
+               * ## delivery
+               * triggeredOn=dev.delivery.finished,evaluation.result=fail
+               * 
+               */
+              if (token.type == 'paragraph' && token.text.startsWith("triggeredOn")) {
+                  // See above. If line contains a comma we have a conditional triggeredOn
+                  // Otherwise we're doing a "basic" or unconditional triggeredOn
+                  if (token.text.includes(',')) { // "advanced" or conditional triggeredOn
+                    //console.log('doing a conditional triggeredOn');
+                    // First split by the comma to get the triggeredOn bit at index[0] and condition at index[1]
+                    // Takes "triggeredOn=dev.delivery.finished,result=fail"
+                    // splits into "triggeredOn=dev.delivery.finished" and "result=fail"
+                    triggeredOn_and_conditionsplit = token.text.split(',')
+                    //console.log("triggeredOn_and_conditionsplit[0]: " + triggeredOn_and_conditionsplit[0]);
+
+                    // Further split item[0] to get just condition (eg. dev.delivery.finished) at index [1] (rhs of equals)
+                    // eg. "triggeredOn=dev.delivery.finished" is spit and condition = "dev.delivery.finished"
+                    condition = triggeredOn_and_conditionsplit[0].split('=')[1];
+
+                    //console.log("triggeredOn_and_conditionsplit[1]: " + triggeredOn_and_conditionsplit[1]);
+
+                    // Takes: ""
+                    // eg. triggeredOn_and_conditionsplit[0] = "dev.delivery.finished"
+                    //     triggeredOn_and_conditionsplit[1] = "evaluation.result=fail"
+                    // Second split to split condition into index[0] = "evaluation.result" and index[1] = "fail"
+                    condition_split = triggeredOn_and_conditionsplit[1].split('=')
+                    //console.log("condition_split[0]: " + condition_split[0]);
+                    //console.log("condition_split[1]: " + condition_split[1]);
+
+                    // eg. condition_split[0] = "evaluation.result"
+                    //     condition_split[1] = "fail"
+                    
+                    // Build object
+                    // Adds following to sequence
+                    // triggeredOn:
+                    // - event: "dev.delivery.finished"
+                    master_list['stages'][stage_index]['sequences'][sequence_index]['triggeredOn'] = [ { "event": condition }];
+                    master_list['stages'][stage_index]['sequences'][sequence_index]['triggeredOn'][0]['selector'] = {
+                        "match": {}
+                    };
+                    master_list['stages'][stage_index]['sequences'][sequence_index]['triggeredOn'][0]['selector']['match'][condition_split[0]] = condition_split[1];
+
+                    //master_list['stages'][stage_index]['sequences'][sequence_index]['triggeredOn'][0]['selector']['match'] = "foo";
+                    //console.log(master_list['stages'][stage_index]['sequences'][sequence_index]['triggeredOn'][0]['selector']);
+                    //master_list['stages'][stage_index]['sequences'][sequence_index][sequenceproperty_split[0]]['event']['selector']['match'][condition_split[0]] = condition_split[1];
+                  }
+                  else { // "basic" or "unconditional" triggeredOn
+                      //console.log('doing an unconditional triggeredOn');
+                      sequenceproperty_split = token.text.split('=');
+                      // Adds following to sequence
+                      // triggeredOn:
+                      // - event: "dev.delivery.finished"
+                      master_list['stages'][stage_index]['sequences'][sequence_index]['triggeredOn'] = [ { "event": sequenceproperty_split[1] }];
+                  }
+              }
+              /*
+               * Handle task "triggeredAfter" information
+               * Appears like this in shipyard
+               * tasks:
+               * - name: evaluation
+               *   triggeredAfter: "10m"
+               * 
+               * Will come in as "triggeredAfter=10m"
+               */
+              if (token.type == 'paragraph' && token.text.startsWith("triggeredAfter")) {
+                    triggeredAfter_split = token.text.split('=');
+                    // triggeredAfter_split[0] = "triggeredAfter"
+                    // triggeredAfter_split[1]  = "10m"
+                    master_list['stages'][stage_index]['sequences'][sequence_index]['tasks'][task_index]['triggeredAfter'] = triggeredAfter_split[1];
+              }
+              
+            };
+            
+            marked.use({ walkTokens });
+
+            // Force a new Shipyard render
+            function forceRender() {
+                //console.log("forcing shipyard re-render...")
+                textarea = document.getElementById("shipyard_input");
+                buildShipyard(textarea);
+            }
+            
+            function buildShipyard(textarea) {
+
+                // clear lists. renderer (above) will fill them again
+                master_list = {
+                  stages: new Array()
+                }
+                // Initialise all indexes at -1
+                // Code above will increment by 1 to zero
+                stage_index = -1;
+                sequence_index = -1;
+                task_index = -1;
+
+                // Parse markdown (this triggers everything to build the JS master_list object)
+                marked.parse(textarea.value);
+
+                //console.log("----------");
+                //console.log("Printing master list...")
+                //console.log(master_list);
+                //console.log("----------");
+
+                project_name = document.getElementById('project_name').value;
+                if (project_name == "") project_name = "default";
+                // prepend "-shipyard" to project_name
+                project_name = "shipyard-" + project_name;
+                //console.log("project name: " + project_name);
+
+                const SHIPYARD_API_VERSION = "spec.keptn.sh/0.2.2";
+                const shipyardObj = {
+                  'apiVersion': SHIPYARD_API_VERSION,
+                  'kind': 'Shipyard',
+                  'metadata': { 'name': project_name },
+                  'spec': master_list
+                }
+  
+                // Print to screen
+                console.log(shipyardObj)
+                document.getElementById('yaml_output').innerHTML = jsyaml.dump(shipyardObj);
+            }
+
+            function copyShipyard() {
+                document.getElementById("yaml_output").select();
+                document.execCommand('copy');
+            }
+        </script>
+    </head>
+    <body onload="forceRender()">
+
+        <h1 class="title is-full is-1">Shipyard Builder</h1>
+        <h2 class="subtitle is-full">Write Markdown, Get a Keptn Shipyard File...</h2>
+
+        <div class="content">
+            <p>A shipyard consists of 1 or more "stages". Each stage contains 1 or more "sequences". Each sequence contains 1 or more "tasks".</p>
+            <p>A basic shipyard is shown below. Updates will reflect live on the right-hand panes.</p>
+            <p>Write your shipyard below using markdown</p>
+            <ul>
+                <li>Stages are given with one <code>#</code> symbol</li>
+                <li>Sequence within a stage are given with <code>##</code></li>
+                <li>Tasks within a sequence are given with <code>###</code></li>
+                <li>Task properties given with <code>####</code> in <code>key=value</code> format. eg. <code>deploymentstrategy=blue_green_service</code></li>
+                <li>Sequence <code>triggeredOn</code> directives are given like this:
+                  <div class="box">
+                  <pre>
+## sequence
+triggeredOn=dev.delivery.finished</pre>
+                  or
+                  <pre>
+## sequence
+triggeredOn=dev.delivery.finished,result=fail</pre>
+                  </div>
+                </li>
+                <li>Task <code>triggeredAfter</code> directives are given like this:
+                  <div class="box">
+                  <pre>
+### task
+triggeredAfter=10m</pre>
+                  </div>
+                </li>
+            </ul>
+        </div>
+
+        <hr />
+
+        <div class="columns">
+
+            <div class="column is-half">
+                <h2 class="title is-2">Input...</h2>
+                <label for="project_name">Project Name:
+                    <input class="input mb-3" id="project_name" type="text" value="sockshop" onkeyup="forceRender()" />
+                </label>
+<textarea class="textarea" id="shipyard_input" onkeyup="buildShipyard(this)" rows="100">
+# dev
+
+## delivery
+### deployment
+#### deploymentstrategy=direct
+### test
+#### teststrategy=functional
+### evaluation
+### release
+
+## delivery-direct
+### deployment
+#### deploymentstrategy=direct
+### release
+
+# staging
+## delivery
+triggeredOn=dev.delivery.finished
+### deployment
+#### deploymentstrategy=blue_green_service
+### test
+#### teststrategy=performance
+### evaluation
+### release
+
+## rollback
+triggeredOn=staging.delivery.finished,result=fail
+### rollback
+
+## delivery-direct
+triggeredOn=dev.delivery-direct.finished
+### deployment
+#### deploymentstrategy=direct
+### release
+
+# production
+
+## delivery
+triggeredOn=staging.delivery.finished
+### deployment
+#### deploymentstrategy=blue_green_service
+### release
+
+## rollback
+triggeredOn=production.delivery.finished,result=fail
+### rollback
+
+## delivery-direct
+triggeredOn=staging.delivery-direct.finished
+### deployment
+#### deploymentstrategy=direct
+### release
+
+## remediation
+triggeredOn=production.remediation.finished,evaluation.result=fail
+### get-action
+### action
+### evaluation
+triggeredAfter=10m
+#### timeframe=15m
+</textarea>
+            </div>
+            <div class="column is-half">
+                <h2 class="title is-2">Output...</h2>
+                <button class="button is-success mb-5" onclick="copyShipyard()">Copy Shipyard</button>
+                <textarea class="textarea" id="yaml_output" readonly rows="100">&nbsp;</textarea>
+            </div>
+        </div> <!-- end columns -->
+    </body>
 </html>
