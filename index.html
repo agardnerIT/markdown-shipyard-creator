@@ -172,7 +172,7 @@
             
             function buildShipyard(textarea) {
 
-                // clear lists. renderer (above) will fill them again
+                // clear lists. walkTokens (above) will fill them again
                 master_list = {
                   stages: new Array()
                 }
@@ -205,7 +205,6 @@
                 }
   
                 // Print to screen
-                console.log(shipyardObj)
                 document.getElementById('yaml_output').innerHTML = jsyaml.dump(shipyardObj);
             }
 
@@ -222,11 +221,12 @@
 
         <div class="content">
             <p>A shipyard consists of 1 or more "stages". Each stage contains 1 or more "sequences". Each sequence contains 1 or more "tasks".</p>
-            <p>A basic shipyard is shown below. Updates will reflect live on the right-hand panes.</p>
+            <p>A full shipyard is shown below. Updates will reflect live on the right-hand pane.</p>
             <p>Write your shipyard below using markdown</p>
             <ul>
+                <li>You can split things by new lines if it helps readability</li>
                 <li>Stages are given with one <code>#</code> symbol</li>
-                <li>Sequence within a stage are given with <code>##</code></li>
+                <li>Sequences within a stage are given with <code>##</code></li>
                 <li>Tasks within a sequence are given with <code>###</code></li>
                 <li>Task properties given with <code>####</code> in <code>key=value</code> format. eg. <code>deploymentstrategy=blue_green_service</code></li>
                 <li>Sequence <code>triggeredOn</code> directives are given like this:
