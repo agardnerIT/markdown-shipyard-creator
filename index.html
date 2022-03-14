@@ -17,10 +17,9 @@
           // Override function
           
           const walkTokens = (token) => {
-              console.log(token);
 
               if (token.type === 'heading' && token.depth == 1) { // stage
-                  console.log('got a stage...');
+                  //console.log('got a stage...');
                   // stage_index starts at -1 so increment to 0
                   // to track the first stage
                   stage_index += 1;
