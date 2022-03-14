@@ -217,6 +217,10 @@
 
         <h1 class="title is-full is-1">Shipyard Builder</h1>
         <h2 class="subtitle is-full">Write Markdown, Get a Keptn Shipyard File...</h2>
+        
+        <div class="notification is-info">
+            This tool is JavaScript based and runs entirely in the browser. No data ever leaves your machine.
+        </div>
 
         <div class="content">
             <p>A shipyard consists of 1 or more "stages". Each stage contains 1 or more "sequences". Each sequence contains 1 or more "tasks".</p>
@@ -227,7 +231,7 @@
                 <li>Stages are given with one <code>#</code> symbol</li>
                 <li>Sequences within a stage are given with <code>##</code></li>
                 <li>Tasks within a sequence are given with <code>###</code></li>
-                <li>Task properties given with <code>####</code> in <code>key=value</code> format. eg. <code>deploymentstrategy=blue_green_service</code></li>
+                <li>Task properties given with <code>####</code> in <code>key=value</code> format. eg. <code>#### deploymentstrategy=blue_green_service</code></li>
                 <li>Sequence <code>triggeredOn</code> directives are given like this:
                   <div class="box">
                   <pre>
