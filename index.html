@@ -10,15 +10,20 @@
         <script src="js/js-yaml.min.js"></script>
 
         <script>
+          let project_name = ""
           let master_list = {
             stages: new Array()
           }
 
           // Override function
-          
           const walkTokens = (token) => {
+              //console.log(token);
 
-              if (token.type === 'heading' && token.depth == 1) { // stage
+              if (token.type === 'heading' && token.depth == 1) { // project name
+                project_name = token.text
+              }
+
+              if (token.type === 'heading' && token.depth == 2) { // stage
                   //console.log('got a stage...');
                   // stage_index starts at -1 so increment to 0
                   // to track the first stage
@@ -34,7 +39,7 @@
                   })
 
               }
-              if (token.type === 'heading' && token.depth == 2) { // sequence
+              if (token.type === 'heading' && token.depth == 3) { // sequence
                   // sequence_index starts at -1 so increment to 0
                   // to track first sequence
                   // and reset task index
@@ -48,7 +53,7 @@
                   })
 
               }
-              if (token.type == 'heading' && token.depth == 3) { // task
+              if (token.type == 'heading' && token.depth == 4) { // task
 
                 // task_index starts at -1 so increment to 0
                 // to track first task
@@ -59,7 +64,7 @@
                     "name": token.text
                 })
               }
-              if (token.type == 'heading' && token.depth == 4) { // task property. This is the normal way. 
+              if (token.type == 'heading' && token.depth == 5) { // task property. This is the normal way. 
                 //console.log('Got a task property: ' + token.text + ' for task: ' + task_index + ' of sequence: ' + sequence_index + ' in stage: ' + stage_index);
                 //console.log(token);
                 property_split = token.text.split('=');
@@ -171,7 +176,7 @@
             
             function buildShipyard(textarea) {
 
-                // clear lists. walkTokens (above) will fill them again
+                // clear lists. renderer (above) will fill them again
                 master_list = {
                   stages: new Array()
                 }
@@ -189,10 +194,6 @@
                 //console.log(master_list);
                 //console.log("----------");
 
-                project_name = document.getElementById('project_name').value;
-                if (project_name == "") project_name = "default";
-                // prepend "-shipyard" to project_name
-                project_name = "shipyard-" + project_name;
                 //console.log("project name: " + project_name);
 
                 const SHIPYARD_API_VERSION = "spec.keptn.sh/0.2.2";
@@ -204,6 +205,7 @@
                 }
   
                 // Print to screen
+                console.log(shipyardObj)
                 document.getElementById('yaml_output').innerHTML = jsyaml.dump(shipyardObj);
             }
 
@@ -217,36 +219,38 @@
 
         <h1 class="title is-full is-1">Shipyard Builder</h1>
         <h2 class="subtitle is-full">Write Markdown, Get a Keptn Shipyard File...</h2>
-        
+
         <div class="notification is-info">
             This tool is JavaScript based and runs entirely in the browser. No data ever leaves your machine.
         </div>
 
         <div class="content">
-            <p>A shipyard consists of 1 or more "stages". Each stage contains 1 or more "sequences". Each sequence contains 1 or more "tasks".</p>
-            <p>A full shipyard is shown below. Updates will reflect live on the right-hand pane.</p>
+            
+            <p>A shipyard consists of a title</p>
+            <p>1 or more "stages". Each stage contains 1 or more "sequences". Each sequence contains 1 or more "tasks".</p>
+            <p>A basic shipyard is shown below. Updates will reflect live on the right-hand panes.</p>
             <p>Write your shipyard below using markdown</p>
             <ul>
-                <li>You can split things by new lines if it helps readability</li>
-                <li>Stages are given with one <code>#</code> symbol</li>
-                <li>Sequences within a stage are given with <code>##</code></li>
-                <li>Tasks within a sequence are given with <code>###</code></li>
-                <li>Task properties given with <code>####</code> in <code>key=value</code> format. eg. <code>#### deploymentstrategy=blue_green_service</code></li>
+                <li>The Shipyard title is given with one <code>#</code> symbol</li>
+                <li>Stages are given with two <code>##</code> symbol</li>
+                <li>Sequence within a stage are given with <code>###</code></li>
+                <li>Tasks within a sequence are given with <code>####</code></li>
+                <li>Task properties given with <code>#####</code> in <code>key=value</code> format. eg. <code>deploymentstrategy=blue_green_service</code></li>
                 <li>Sequence <code>triggeredOn</code> directives are given like this:
                   <div class="box">
                   <pre>
-## sequence
+### sequence
 triggeredOn=dev.delivery.finished</pre>
                   or
                   <pre>
-## sequence
+### sequence
 triggeredOn=dev.delivery.finished,result=fail</pre>
                   </div>
                 </li>
                 <li>Task <code>triggeredAfter</code> directives are given like this:
                   <div class="box">
                   <pre>
-### task
+#### task
 triggeredAfter=10m</pre>
                   </div>
                 </li>
@@ -259,70 +263,69 @@ triggeredAfter=10m</pre>
 
             <div class="column is-half">
                 <h2 class="title is-2">Input...</h2>
-                <label for="project_name">Project Name:
-                    <input class="input mb-3" id="project_name" type="text" value="sockshop" onkeyup="forceRender()" />
-                </label>
 <textarea class="textarea" id="shipyard_input" onkeyup="buildShipyard(this)" rows="100">
-# dev
+# sockshop-shipyard
 
-## delivery
-### deployment
-#### deploymentstrategy=direct
-### test
-#### teststrategy=functional
-### evaluation
-### release
+## dev
 
-## delivery-direct
-### deployment
-#### deploymentstrategy=direct
-### release
+### delivery
+#### deployment
+##### deploymentstrategy=direct
+#### test
+##### teststrategy=functional
+#### evaluation
+#### release
 
-# staging
-## delivery
+### delivery-direct
+#### deployment
+##### deploymentstrategy=direct
+#### release
+
+## staging
+### delivery
 triggeredOn=dev.delivery.finished
-### deployment
-#### deploymentstrategy=blue_green_service
-### test
-#### teststrategy=performance
-### evaluation
-### release
+#### deployment
+##### deploymentstrategy=blue_green_service
+#### test
+##### teststrategy=performance
+#### evaluation
+#### release
 
-## rollback
+### rollback
 triggeredOn=staging.delivery.finished,result=fail
-### rollback
+#### rollback
 
-## delivery-direct
+### delivery-direct
 triggeredOn=dev.delivery-direct.finished
-### deployment
-#### deploymentstrategy=direct
-### release
+#### deployment
+##### deploymentstrategy=direct
+#### release
 
-# production
+## production
 
-## delivery
+### delivery
 triggeredOn=staging.delivery.finished
-### deployment
-#### deploymentstrategy=blue_green_service
-### release
+#### deployment
+##### deploymentstrategy=blue_green_service
+#### release
 
-## rollback
-triggeredOn=production.delivery.finished,result=fail
 ### rollback
+triggeredOn=production.delivery.finished,result=fail
+#### rollback
 
-## delivery-direct
+### delivery-direct
 triggeredOn=staging.delivery-direct.finished
-### deployment
-#### deploymentstrategy=direct
-### release
+#### deployment
+##### deploymentstrategy=direct
+#### release
 
-## remediation
+### remediation
 triggeredOn=production.remediation.finished,evaluation.result=fail
-### get-action
-### action
-### evaluation
+#### get-action
+#### action
+#### evaluation
 triggeredAfter=10m
-#### timeframe=15m
+##### timeframe=15m
 </textarea>
             </div>
             <div class="column is-half">
